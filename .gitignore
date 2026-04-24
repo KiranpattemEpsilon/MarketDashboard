@@ -1,0 +1,15 @@
+# Never commit these
+.env
+*.env
+secrets.js
+config.local.js
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/settings.json
+*.suo
+*.user

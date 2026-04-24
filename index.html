@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>India Market Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <header>
+    <span>🇮🇳 India Market Dashboard</span>
+    <span id="clock"></span>
+  </header>
+
+  <div class="grid">
+
+    <!-- TOP LEFT: Nifty 50 -->
+    <div class="panel">
+      <div class="panel-title">📈 Nifty 50 — Live</div>
+      <div class="tradingview-widget-container">
+        <div id="nifty-chart"></div>
+      </div>
+    </div>
+
+    <!-- TOP RIGHT: Sensex -->
+    <div class="panel">
+      <div class="panel-title">📈 Sensex (BSE) — Live</div>
+      <div class="tradingview-widget-container">
+        <div id="sensex-chart"></div>
+      </div>
+    </div>
+
+    <!-- BOTTOM LEFT: News Feed -->
+    <div class="panel">
+      <div class="panel-title">📰 Market News <span id="news-time"></span></div>
+      <div id="news-feed">
+        <div class="loading">Fetching news...</div>
+      </div>
+      <button id="refresh-news" onclick="fetchNews()">🔄 Refresh News</button>
+    </div>
+
+    <!-- BOTTOM RIGHT: Prediction -->
+    <div class="panel">
+      <div class="panel-title">🤖 AI Pattern Prediction</div>
+      <div id="prediction-panel">
+        <div class="loading">Analyzing patterns...</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- TradingView -->
+  <script src="https://s3.tradingview.com/tv.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
