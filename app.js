@@ -27,70 +27,31 @@ function initCharts() {
   new TradingView.widget({ ...commonConfig, symbol: 'BSE:SENSEX', container_id: 'sensex-chart' });
 }
 
-// ─── NEWS via rss2json.com (CORS-safe, no proxy needed) ───────────────────────
-// rss2json converts RSS to JSON with proper CORS headers — works from any browser
-const RSS2JSON = 'https://api.rss2json.com/v1/api.json?rss_url=';
-const NEWS_FEEDS = [
-  'https://economictimes.indiatimes.com/markets/stocks/rss.cms',
-  'https://www.moneycontrol.com/rss/latestnews.xml',
-  'https://feeds.feedburner.com/ndtvprofit-latest'
-];
-
-function sentimentTag(title) {
-  const t = title.toLowerCase();
-  const bullish = ['rise', 'gain', 'surge', 'rally', 'high', 'bull', 'up', 'positive', 'growth', 'record', 'boost', 'jump', 'soar'];
-  const bearish = ['fall', 'drop', 'crash', 'decline', 'low', 'bear', 'down', 'negative', 'loss', 'sell', 'weak', 'slip', 'plunge'];
-  if (bullish.some(w => t.includes(w))) return 'bullish';
-  if (bearish.some(w => t.includes(w))) return 'bearish';
-  return 'neutral';
-}
-
-async function fetchNews() {
+// ─── NEWS via TradingView Timeline Widget (no API, no CORS, always works) ─────
+function loadNewsWidget() {
   const feed = document.getElementById('news-feed');
-  feed.innerHTML = '<div class="loading">Fetching latest news...</div>';
 
-  for (const rssUrl of NEWS_FEEDS) {
-    try {
-      const res = await fetch(RSS2JSON + encodeURIComponent(rssUrl),
-        { signal: AbortSignal.timeout(8000) });
-      const data = await res.json();
-      if (data.status !== 'ok' || !data.items?.length) continue;
-
-      feed.innerHTML = '';
-      data.items.slice(0, 15).forEach(item => {
-        const title     = item.title || '';
-        const link      = item.link  || '#';
-        const pubDate   = item.pubDate || '';
-        const sentiment = sentimentTag(title);
-        const timeStr   = pubDate
-          ? new Date(pubDate).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
-          : '';
-
-        const div = document.createElement('div');
-        div.className = `news-item ${sentiment}`;
-        div.innerHTML = `
-          <a href="${link}" target="_blank" rel="noopener">${title}</a>
-          <div class="news-meta">${timeStr} &nbsp;·&nbsp; ${
-            sentiment === 'bullish' ? '🟢 Bullish signal' :
-            sentiment === 'bearish' ? '🔴 Bearish signal' : '🟡 Neutral'}</div>
-        `;
-        feed.appendChild(div);
-      });
-
-      document.getElementById('news-time').textContent =
-        'Updated ' + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-
-      const sentiments = data.items.slice(0, 15).map(i => sentimentTag(i.title || ''));
-      updatePrediction(sentiments);
-      return; // success — stop trying other feeds
-
-    } catch { continue; }
-  }
-
-  // All feeds failed
+  // TradingView Timeline widget — shows live financial news, no API key, no CORS
   feed.innerHTML = `
-    <div class="loading">⚠️ Could not load news.<br/>
-    <a href="https://economictimes.indiatimes.com/markets" target="_blank" style="color:#58a6ff">Open ET Markets ↗</a></div>`;
+    <div class="tradingview-widget-container" style="height:100%">
+      <div class="tradingview-widget-container__widget" style="height:100%"></div>
+      <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-timeline.js" async>
+      {
+        "feedMode": "market",
+        "market": "stock",
+        "isTransparent": true,
+        "displayMode": "regular",
+        "width": "100%",
+        "height": "100%",
+        "colorTheme": "dark",
+        "locale": "en"
+      }
+      <\/script>
+    </div>`;
+
+  document.getElementById('news-time').textContent = 'Live via TradingView';
+
+  // Since we have no sentiment data, run prediction on session+day only
   updatePrediction([]);
 }
 
@@ -100,13 +61,13 @@ function marketSessionBias() {
   const ist = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
   const totalMin = ist.getHours() * 60 + ist.getMinutes();
 
-  if (totalMin < 555)  return { label: 'Pre-Market',        bias: 0,    note: 'Market not open yet' };
-  if (totalMin > 930)  return { label: 'After-Market',       bias: 0,    note: 'Market closed for today' };
-  if (totalMin < 600)  return { label: 'Opening Bell',       bias: 0.6,  note: 'High volatility — opening 45 mins' };
-  if (totalMin < 690)  return { label: 'Morning Session',    bias: 0.3,  note: 'Trend usually establishes here' };
-  if (totalMin < 780)  return { label: 'Midday Lull',        bias: -0.1, note: 'Low volume, sideways likely' };
-  if (totalMin < 870)  return { label: 'Afternoon Session',  bias: 0.2,  note: 'FII activity picks up' };
-  return               { label: 'Power Hour',                bias: 0.5,  note: 'High volume close — watch for reversals' };
+  if (totalMin < 555)  return { label: 'Pre-Market',       bias: 0,    note: 'Market not open yet' };
+  if (totalMin > 930)  return { label: 'After-Market',      bias: 0,    note: 'Market closed for today' };
+  if (totalMin < 600)  return { label: 'Opening Bell',      bias: 0.6,  note: 'High volatility — opening 45 mins' };
+  if (totalMin < 690)  return { label: 'Morning Session',   bias: 0.3,  note: 'Trend usually establishes here' };
+  if (totalMin < 780)  return { label: 'Midday Lull',       bias: -0.1, note: 'Low volume, sideways likely' };
+  if (totalMin < 870)  return { label: 'Afternoon Session', bias: 0.2,  note: 'FII activity picks up' };
+  return               { label: 'Power Hour',               bias: 0.5,  note: 'High volume close — watch for reversals' };
 }
 
 function dayOfWeekBias() {
@@ -123,8 +84,8 @@ function updatePrediction(sentiments) {
   const total     = sentiments.length || 1;
   const newsScore = (bullCount - bearCount) / total;
 
-  const session  = marketSessionBias();
-  const dayBias  = dayOfWeekBias();
+  const session   = marketSessionBias();
+  const dayBias   = dayOfWeekBias();
   const composite = (newsScore * 0.5) + (session.bias * 0.3) + (dayBias.bias * 0.2);
 
   let direction, dirClass, confidence;
@@ -133,13 +94,9 @@ function updatePrediction(sentiments) {
   else                        { direction = '◆ SIDEWAYS'; dirClass = 'neutral'; confidence = 50; }
 
   const indicators = [
-    { label: 'News Sentiment', val: bullCount > bearCount ? 'Bullish' : bearCount > bullCount ? 'Bearish' : 'Neutral',
-      cls: bullCount > bearCount ? 'green' : bearCount > bullCount ? 'red' : 'yellow' },
-    { label: 'Session',        val: session.label, cls: 'yellow' },
-    { label: 'Day Bias',       val: dayBias.day,   cls: dayBias.bias >= 0 ? 'green' : 'red' },
-    { label: 'Bullish News',   val: bullCount,     cls: 'green' },
-    { label: 'Bearish News',   val: bearCount,     cls: 'red' },
-    { label: 'Composite Score',val: composite.toFixed(2), cls: composite > 0 ? 'green' : composite < 0 ? 'red' : 'yellow' },
+    { label: 'Session',         val: session.label, cls: 'yellow' },
+    { label: 'Day Bias',        val: dayBias.day,   cls: dayBias.bias >= 0 ? 'green' : 'red' },
+    { label: 'Composite Score', val: composite.toFixed(2), cls: composite > 0 ? 'green' : composite < 0 ? 'red' : 'yellow' },
   ];
 
   panel.innerHTML = `
@@ -163,16 +120,17 @@ function updatePrediction(sentiments) {
     <div class="prediction-card">
       <h4>How This Works</h4>
       <div class="signal-detail">
-        • 50% weight → News sentiment (ET Markets keywords)<br/>
         • 30% weight → Market session pattern (opening/midday/close)<br/>
         • 20% weight → Day-of-week historical bias<br/>
+        • News panel → TradingView live financial news feed<br/>
         <br/>⚠️ Pattern-based only. Not financial advice.
       </div>
     </div>
   `;
 }
 
-// ─── AUTO REFRESH ─────────────────────────────────────────────────────────────
-fetchNews();
-setInterval(fetchNews, 5 * 60 * 1000);
-window.addEventListener('load', initCharts);
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  initCharts();
+  loadNewsWidget();
+});
