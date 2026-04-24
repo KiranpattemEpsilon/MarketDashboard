@@ -29,8 +29,12 @@ function initCharts() {
   new TradingView.widget({ ...commonConfig, symbol: 'BSE:SENSEX', container_id: 'sensex-chart' });
 }
 
-// ─── GOOGLE NEWS RSS (via allorigins CORS proxy) ──────────────────────────────
-const CORS_PROXY = 'https://api.allorigins.win/get?url=';
+// ─── GOOGLE NEWS RSS (multi-proxy fallback) ─────────────────────────────────
+const CORS_PROXIES = [
+  url => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+  url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+  url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`
+];
 const NEWS_QUERIES = [
   'nifty+sensex+market+india',
   'RBI+interest+rate+india',
@@ -47,19 +51,33 @@ function sentimentTag(title) {
   return 'neutral';
 }
 
+async function fetchWithFallback(rssUrl) {
+  for (const proxyFn of CORS_PROXIES) {
+    try {
+      const res = await fetch(proxyFn(rssUrl), { signal: AbortSignal.timeout(6000) });
+      if (!res.ok) continue;
+      const text = await res.text();
+      // allorigins returns JSON, others return raw XML
+      try {
+        const json = JSON.parse(text);
+        if (json.contents) return json.contents;
+      } catch { return text; }
+    } catch { continue; }
+  }
+  throw new Error('All proxies failed');
+}
+
 async function fetchNews() {
   const feed = document.getElementById('news-feed');
   feed.innerHTML = '<div class="loading">Fetching latest news...</div>';
 
   const query = NEWS_QUERIES[Math.floor(Math.random() * NEWS_QUERIES.length)];
   const rssUrl = `https://news.google.com/rss/search?q=${query}&hl=en-IN&gl=IN&ceid=IN:en`;
-  const url = CORS_PROXY + encodeURIComponent(rssUrl);
 
   try {
-    const res = await fetch(url);
-    const data = await res.json();
+    const xmlText = await fetchWithFallback(rssUrl);
     const parser = new DOMParser();
-    const xml = parser.parseFromString(data.contents, 'text/xml');
+    const xml = parser.parseFromString(xmlText, 'text/xml');
     const items = Array.from(xml.querySelectorAll('item')).slice(0, 15);
 
     if (!items.length) throw new Error('No items');
