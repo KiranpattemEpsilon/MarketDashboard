@@ -24,7 +24,7 @@ function initCharts() {
     studies: ['RSI@tv-basicstudies', 'MACD@tv-basicstudies']
   };
   new TradingView.widget({ ...commonConfig, symbol: 'NSE:NIFTY',  container_id: 'nifty-chart' });
-  new TradingView.widget({ ...commonConfig, symbol: 'BSE:SENSEX', container_id: 'sensex-chart' });
+  new TradingView.widget({ ...commonConfig, symbol: 'BSE:SENSEX', container_id: 'sensex-chart', interval: 'D', studies: [] });
 }
 
 // ─── PATTERN-BASED PREDICTION ENGINE ─────────────────────────────────────────
