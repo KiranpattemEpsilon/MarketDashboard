@@ -27,47 +27,19 @@ function initCharts() {
   new TradingView.widget({ ...commonConfig, symbol: 'BSE:SENSEX', container_id: 'sensex-chart' });
 }
 
-// ─── NEWS via TradingView Timeline Widget (no API, no CORS, always works) ─────
-function loadNewsWidget() {
-  const feed = document.getElementById('news-feed');
-
-  // TradingView Timeline widget — shows live financial news, no API key, no CORS
-  feed.innerHTML = `
-    <div class="tradingview-widget-container" style="height:100%">
-      <div class="tradingview-widget-container__widget" style="height:100%"></div>
-      <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-timeline.js" async>
-      {
-        "feedMode": "market",
-        "market": "stock",
-        "isTransparent": true,
-        "displayMode": "regular",
-        "width": "100%",
-        "height": "100%",
-        "colorTheme": "dark",
-        "locale": "en"
-      }
-      <\/script>
-    </div>`;
-
-  document.getElementById('news-time').textContent = 'Live via TradingView';
-
-  // Since we have no sentiment data, run prediction on session+day only
-  updatePrediction([]);
-}
-
 // ─── PATTERN-BASED PREDICTION ENGINE ─────────────────────────────────────────
 function marketSessionBias() {
   const now = new Date();
   const ist = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
   const totalMin = ist.getHours() * 60 + ist.getMinutes();
 
-  if (totalMin < 555)  return { label: 'Pre-Market',       bias: 0,    note: 'Market not open yet' };
-  if (totalMin > 930)  return { label: 'After-Market',      bias: 0,    note: 'Market closed for today' };
-  if (totalMin < 600)  return { label: 'Opening Bell',      bias: 0.6,  note: 'High volatility — opening 45 mins' };
-  if (totalMin < 690)  return { label: 'Morning Session',   bias: 0.3,  note: 'Trend usually establishes here' };
-  if (totalMin < 780)  return { label: 'Midday Lull',       bias: -0.1, note: 'Low volume, sideways likely' };
-  if (totalMin < 870)  return { label: 'Afternoon Session', bias: 0.2,  note: 'FII activity picks up' };
-  return               { label: 'Power Hour',               bias: 0.5,  note: 'High volume close — watch for reversals' };
+  if (totalMin < 555) return { label: 'Pre-Market',       bias: 0,    note: 'Market not open yet' };
+  if (totalMin > 930) return { label: 'After-Market',      bias: 0,    note: 'Market closed for today' };
+  if (totalMin < 600) return { label: 'Opening Bell',      bias: 0.6,  note: 'High volatility — opening 45 mins' };
+  if (totalMin < 690) return { label: 'Morning Session',   bias: 0.3,  note: 'Trend usually establishes here' };
+  if (totalMin < 780) return { label: 'Midday Lull',       bias: -0.1, note: 'Low volume, sideways likely' };
+  if (totalMin < 870) return { label: 'Afternoon Session', bias: 0.2,  note: 'FII activity picks up' };
+  return               { label: 'Power Hour',              bias: 0.5,  note: 'High volume close — watch for reversals' };
 }
 
 function dayOfWeekBias() {
@@ -76,26 +48,22 @@ function dayOfWeekBias() {
   return { day, bias: biases[day] ?? 0 };
 }
 
-function updatePrediction(sentiments) {
-  const panel = document.getElementById('prediction-panel');
-
-  const bullCount = sentiments.filter(s => s === 'bullish').length;
-  const bearCount = sentiments.filter(s => s === 'bearish').length;
-  const total     = sentiments.length || 1;
-  const newsScore = (bullCount - bearCount) / total;
-
+function updatePrediction() {
+  const panel     = document.getElementById('prediction-panel');
   const session   = marketSessionBias();
   const dayBias   = dayOfWeekBias();
-  const composite = (newsScore * 0.5) + (session.bias * 0.3) + (dayBias.bias * 0.2);
+  const composite = (session.bias * 0.6) + (dayBias.bias * 0.4);
 
   let direction, dirClass, confidence;
-  if (composite > 0.15)       { direction = '▲ BULLISH';  dirClass = 'up';      confidence = Math.min(95, 50 + composite * 80); }
-  else if (composite < -0.15) { direction = '▼ BEARISH';  dirClass = 'down';    confidence = Math.min(95, 50 + Math.abs(composite) * 80); }
-  else                        { direction = '◆ SIDEWAYS'; dirClass = 'neutral'; confidence = 50; }
+  if (composite > 0.1)       { direction = '▲ BULLISH';  dirClass = 'up';      confidence = Math.min(95, 50 + composite * 80); }
+  else if (composite < -0.1) { direction = '▼ BEARISH';  dirClass = 'down';    confidence = Math.min(95, 50 + Math.abs(composite) * 80); }
+  else                       { direction = '◆ SIDEWAYS'; dirClass = 'neutral'; confidence = 50; }
 
   const indicators = [
-    { label: 'Session',         val: session.label, cls: 'yellow' },
-    { label: 'Day Bias',        val: dayBias.day,   cls: dayBias.bias >= 0 ? 'green' : 'red' },
+    { label: 'Session',         val: session.label,        cls: 'yellow' },
+    { label: 'Day',             val: dayBias.day,          cls: dayBias.bias >= 0 ? 'green' : 'red' },
+    { label: 'Session Bias',    val: session.bias.toFixed(1),  cls: session.bias > 0 ? 'green' : session.bias < 0 ? 'red' : 'yellow' },
+    { label: 'Day Bias',        val: dayBias.bias.toFixed(1),  cls: dayBias.bias >= 0 ? 'green' : 'red' },
     { label: 'Composite Score', val: composite.toFixed(2), cls: composite > 0 ? 'green' : composite < 0 ? 'red' : 'yellow' },
   ];
 
@@ -120,9 +88,9 @@ function updatePrediction(sentiments) {
     <div class="prediction-card">
       <h4>How This Works</h4>
       <div class="signal-detail">
-        • 30% weight → Market session pattern (opening/midday/close)<br/>
-        • 20% weight → Day-of-week historical bias<br/>
-        • News panel → TradingView live financial news feed<br/>
+        • 60% weight → Market session pattern<br/>
+        • 40% weight → Day-of-week historical bias<br/>
+        • News panel → TradingView live feed (left)<br/>
         <br/>⚠️ Pattern-based only. Not financial advice.
       </div>
     </div>
@@ -132,5 +100,5 @@ function updatePrediction(sentiments) {
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 window.addEventListener('load', () => {
   initCharts();
-  loadNewsWidget();
+  updatePrediction();
 });
